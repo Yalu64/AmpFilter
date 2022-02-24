@@ -15,20 +15,22 @@ import (
 	"time"
 )
 
+const threadDelay = time.Microsecond * 200
+const socketTimeout = time.Millisecond * 500
+
 type Protocol struct {
 	Port    int
 	Payload []byte
 }
 
+var mutex sync.Mutex
 var protocols = map[string]*Protocol{
 	"dns":  {Port: 53, Payload: []byte("\\x9c\\x88\\x01\\x20\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x01\\x07\\x75\\x63\\x64\\x61\\x76\\x69\\x73\\x03\\x65\\x64\\x75\\x00\\x00\\xff\\x00\\x01\\x00\\x00\\x29\\x10\\x00\\x00\\x00\\x80\\x00\\x00\\x00")},
 	"dvr":  {Port: 37810, Payload: []byte("\\x44\\x48\\x49\\x50")},
-	"ntp":  {Port: 123, Payload: []byte("\\x17\\x00\\x03\\x2a\\x00\\x00\\x00\\x00")},
+	"ntp":  {Port: 123, Payload: []byte("\x17\x00\x03\x2a\x00\x00\x00\x00")},
 	"snmp": {Port: 161, Payload: []byte("\\x30\\x20\\x02\\x01\\x01\\x04\\x06\\x70\\x75\\x62\\x6c\\x69\\x63\\xa5\\x13\\x02\\x02\\x00\\x01\\x02\\x01\\x00\\x02\\x01\\x46\\x30\\x07\\x30\\x05\\x06\\x01\\x28\\x05\\x00")},
 	"wsd":  {Port: 3702, Payload: []byte("\\x3c\\x3a\\x2f\\x3e")},
 }
-
-const threadDelay = time.Millisecond * 10
 
 var working = make(map[string]interface{})
 
@@ -70,26 +72,26 @@ func main() {
 			if err != nil {
 				return
 			}
-			_ = c.SetDeadline(time.Now().Add(time.Second))
-			_ = c.SetReadDeadline(time.Now().Add(time.Second))
-			_ = c.SetWriteDeadline(time.Now().Add(time.Second))
+			c.SetReadDeadline(time.Now().Add(socketTimeout))
+
 			defer c.Close()
 			_, err = c.Write(protocol.Payload)
 			if err != nil {
 				return
 			}
 			b := make([]byte, 2<<15)
-			n, err := c.Read(b)
+			n, addr, err := c.ReadFrom(b)
 			if err != nil {
 				return
 			}
 
 			if n >= bytes {
-				if working[ip] != nil {
-					fmt.Printf("[+] Received working server %s bytes: %d\n", ip, n)
-				} else {
-					working[ip] = nil
+				mutex.Lock()
+				if working[ip] == nil {
+					fmt.Printf("[+] Received working server %s bytes: %d\n", addr.String(), n)
+					working[ip] = ip
 				}
+				mutex.Unlock()
 			}
 		}()
 		time.Sleep(threadDelay)
