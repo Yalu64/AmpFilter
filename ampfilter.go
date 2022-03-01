@@ -72,7 +72,7 @@ func main() {
 			if err != nil {
 				return
 			}
-			c.SetReadDeadline(time.Now().Add(socketTimeout))
+			_ = c.SetReadDeadline(time.Now().Add(socketTimeout))
 
 			defer c.Close()
 			_, err = c.Write(protocol.Payload)
@@ -88,7 +88,7 @@ func main() {
 			if n >= bytes {
 				mutex.Lock()
 				if working[ip] == nil {
-					fmt.Printf("[+] Received working server %s bytes: %d\n", addr.String(), n)
+					fmt.Printf("[%s] Sent %d bytes received %d bytes (%.2fx amplifier)\n", addr.String(), len(protocol.Payload), n, float64(n/len(protocol.Payload)))
 					working[ip] = ip
 				}
 				mutex.Unlock()
